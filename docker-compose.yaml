@@ -1,0 +1,54 @@
+version: "3"
+
+services:
+  mariadb:
+    image: wodby/mariadb:10.2-3.0.2
+    env_file: ./.env
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: 'true'
+      MYSQL_DATABASE: ${DATABASE_NAME}
+      MYSQL_USER: ${DATABASE_USER}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD}
+    ports:
+      - 3306:3306
+    volumes:
+      - mysqldata:/var/lib/mysql
+      # - ./dump.sql:/docker-entrypoint-initdb.d/dump.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u", "${DATABASE_USER}", "-p", "${DATABASE_PASSWORD}"]
+      timeout: 20s
+      retries: 10
+
+  php:
+    image: drupal-lalop
+    build:
+      context: https://github.com/wodby/php.git#4.13.1:7
+      args:
+        WODBY_USER_ID: ${DEV_USER_ID}
+        WODBY_GROUP_ID: ${DEV_GROUP_ID}
+        FROM_TAG: 7.3.10
+        PHP_DEV: 1
+        PHP_DEBUG: 1
+
+    env_file: ./.env
+    environment:
+      PHP_SENDMAIL_PATH: /usr/sbin/sendmail -t -i -S mailhog:1025
+    volumes:
+      - ./:${DRUPAL_ROOT}
+    depends_on:
+      - mariadb
+    ports:
+      - 8088:8088
+    command: ./vendor/bin/drupal serve 0.0.0.0:8088
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - 8025:8025
+    env_file: ./.env
+
+
+
+volumes:
+  mysqldata:
+    driver: "local"
